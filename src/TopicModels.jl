@@ -1,17 +1,43 @@
 module TopicModels
 
-typealias RaggedMatrix{T} Array{Array{Int64,1},1}
-typealias Corpus RaggedMatrix{Int64}
+import Base.length
+
+typealias RaggedMatrix{T} Array{Array{T,1},1}
+
+type Corpus
+  documents::RaggedMatrix{Int64}
+  weights::RaggedMatrix{Float64}
+
+  Corpus(documents::RaggedMatrix{Int64},
+         weights::RaggedMatrix{Float64}) = begin
+    return new(
+      documents,
+      weights
+    )
+  end
+  
+  Corpus(documents::RaggedMatrix{Int64}) = begin
+    weights = map(documents) do doc
+      ones(Float64, length(doc))
+    end
+    return new(
+      documents,
+      weights
+    )
+  end
+end
 
 type Model
-  alphaPrior::Array{Float64,1}
+  alphaPrior::Vector{Float64}
   betaPrior::Float64
-  topics::Array{Int64,2}
-  topicSums::Array{Int64,1}
-  documentSums::Array{Int64,2}
+  topics::Array{Float64,2}
+  topicSums::Vector{Float64}
+  documentSums::Array{Float64,2}
   assignments::RaggedMatrix{Int64}
+  frozen::Bool
+  corpus::Corpus
 
-  Model(alphaPrior::Array{Float64,1}, 
+  Model(alphaPrior::Vector{Float64}, 
         betaPrior::Float64, 
         V::Int64, 
         corpus::Corpus) = begin
@@ -19,21 +45,47 @@ type Model
     m = new(
       alphaPrior,
       betaPrior,
-      zeros(Int64, K, V), # topics
-      zeros(Int64, K), # topicSums
-      zeros(Int64, K, length(corpus)), #documentSums
-      fill(Array(Int64, 0), length(corpus)) # assignments
+      zeros(Float64, K, V), # topics
+      zeros(Float64, K), # topicSums
+      zeros(Float64, K, length(corpus.documents)), #documentSums
+      fill(Array(Int64, 0), length(corpus.documents)), # assignments
+      false,
+      corpus
     )
-    for dd in 1:length(corpus)
-      m.assignments[dd] = fill(0, length(corpus[dd])) 
-      for ww in 1:length(corpus[dd])
-        word = corpus[dd][ww]
-        topic = sampleMultinomial(alphaPrior)
-        m.assignments[dd][ww] = topic
-        updateSufficientStatistics(word, topic, dd, 1, m)
-      end
-    end
+    initializeAssignments(m)
     return m
+  end
+
+  Model(trainedModel::Model, corpus::Corpus) = begin
+    m = new(
+      trainedModel.alphaPrior,
+      trainedModel.betaPrior,
+      trainedModel.topics,
+      trainedModel.topicSums,
+      trainedModel.documentSums,
+      fill(Array(Int64, 0), length(corpus.documents)),
+      true,
+      corpus
+    )
+    initializeAssignments(m)
+    return m
+  end
+end
+
+function length(corpus::Corpus)
+  return length(corpus.documents)
+end
+
+function initializeAssignments(model::Model)
+  for dd in 1:length(model.corpus)
+    model.assignments[dd] = fill(0, length(model.corpus.documents[dd])) 
+    for ww in 1:length(model.corpus.documents[dd])
+      word = model.corpus.documents[dd][ww]
+      topic = sampleMultinomial(model.alphaPrior)
+      model.assignments[dd][ww] = topic
+      updateSufficientStatistics(
+        word, topic, dd, model.corpus.weights[dd][ww], model)
+    end
   end
 end
 
@@ -53,49 +105,56 @@ end
 
 function wordDistribution(word::Int,
                           document::Int,
-                          model::Model)
+                          model::Model,
+                          out::Vector{Float64})
   V = size(model.topics, 2)
-  (model.documentSums[1:end,document] + model.alphaPrior) .* 
-    (model.topics[1:end, word] + model.betaPrior) ./ 
-    (model.topicSums + V * model.betaPrior)
+  for ii in 1:length(out)
+    out[ii] = (model.documentSums[ii, document] + model.alphaPrior[ii]) * 
+              (model.topics[ii, word] + model.betaPrior) / 
+              (model.topicSums[ii] + V * model.betaPrior)
+  end
+  return out
 end
 
 function sampleWord(word::Int,
                     document::Int,
-                    model::Model)
-  p = wordDistribution(word, document, model)
+                    model::Model,
+                    p::Vector{Float64})
+  wordDistribution(word, document, model, p)
   sampleMultinomial(p)
 end
 
 
-function updateSufficientStatistics(word::Int, 
-                                    topic::Int,
-                                    document::Int,
-                                    scale::Int, 
+function updateSufficientStatistics(word::Int64, 
+                                    topic::Int64,
+                                    document::Int64,
+                                    scale::Float64, 
                                     model::Model)
-  model.topics[topic, word] += scale
-  model.topicSums[topic] += scale
   model.documentSums[topic, document] += scale
+  model.topicSums[topic] += scale * !model.frozen
+  model.topics[topic, word] += scale * !model.frozen
 end
 
-function sampleDocument(words::Array{Int64,1},
-                        document::Int,
-                        model::Model) 
+function sampleDocument(document::Int,
+                        model::Model)
+  words = model.corpus.documents[document]
   Nw = length(words)
+  weights = model.corpus.weights[document]
+  K = length(model.alphaPrior)
+  p = Array(Float64, K)
   for ii in 1:Nw
     word = words[ii]
     oldTopic = model.assignments[document][ii] 
-    updateSufficientStatistics(word, oldTopic, document, -1, model)
-    newTopic = sampleWord(word, document, model)
+    updateSufficientStatistics(word, oldTopic, document, -weights[ii], model)
+    newTopic::Int64 = sampleWord(word, document, model, p)
     model.assignments[document][ii] = newTopic
-    updateSufficientStatistics(word, newTopic, document, 1, model)
+    updateSufficientStatistics(word, newTopic, document, weights[ii], model)
   end
 end
 
-function sampleCorpus(corpus::Corpus,
-                      model::Model)
-  for ii in 1:length(corpus)
-    sampleDocument(corpus[ii], ii, model)
+function sampleCorpus(model::Model)
+  for ii in 1:length(model.corpus)
+    sampleDocument(ii, model)
   end
 end
 
@@ -106,12 +165,11 @@ function termToWordSequence(term::String)
 end 
 
 # The functions below are designed for public consumption
-function trainModel(corpus::Corpus,
-                    model::Model, 
+function trainModel(model::Model, 
                     numIterations::Int64)
   for ii in 1:numIterations
     println(string("Iteration ", ii, "..."))
-    sampleCorpus(corpus, model)
+    sampleCorpus(model)
   end
 end
 
