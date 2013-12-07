@@ -193,6 +193,11 @@ function readLexicon(stream)
   map(chomp, convert(Array{String,1}, lines))
 end
 
-export trainModel, topTopicWords, readDocuments, readLexicon
+export Corpus,
+       Model,
+       readDocuments,
+       readLexicon,
+       topTopicWords,
+       trainModel
 
 end
