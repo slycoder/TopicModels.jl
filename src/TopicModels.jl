@@ -78,15 +78,17 @@ end
 
 function initializeAssignments(model::Model)
   for dd in 1:length(model.corpus)
-    model.assignments[dd] = fill(0, length(model.corpus.documents[dd])) 
-    for ww in 1:length(model.corpus.documents[dd])
-      word = model.corpus.documents[dd][ww]
+    @inbounds words = model.corpus.documents[dd]
+    @inbounds model.assignments[dd] = fill(0, length(words))
+    for ww in 1:length(words)
+      @inbounds word = words[ww]
       topic = sampleMultinomial(model.alphaPrior)
-      model.assignments[dd][ww] = topic
+      @inbounds model.assignments[dd][ww] = topic
       updateSufficientStatistics(
         word, topic, dd, model.corpus.weights[dd][ww], model)
     end
   end
+  return
 end
 
 function sampleMultinomial(p::Array{Float64,1})
@@ -109,11 +111,12 @@ function wordDistribution(word::Int,
                           out::Vector{Float64})
   V = size(model.topics, 2)
   for ii in 1:length(out)
-    out[ii] = (model.documentSums[ii, document] + model.alphaPrior[ii]) * 
-              (model.topics[ii, word] + model.betaPrior) / 
-              (model.topicSums[ii] + V * model.betaPrior)
+    u = (model.documentSums[ii, document] + model.alphaPrior[ii]) * 
+        (model.topics[ii, word] + model.betaPrior) / 
+        (model.topicSums[ii] + V * model.betaPrior)
+    @inbounds out[ii] = u
   end
-  return out
+  return
 end
 
 function sampleWord(word::Int,
@@ -130,32 +133,37 @@ function updateSufficientStatistics(word::Int64,
                                     document::Int64,
                                     scale::Float64, 
                                     model::Model)
-  model.documentSums[topic, document] += scale
-  model.topicSums[topic] += scale * !model.frozen
-  model.topics[topic, word] += scale * !model.frozen
+  fr = float64(!model.frozen)
+  @inbounds model.documentSums[topic, document] += scale
+  @inbounds model.topicSums[topic] += scale * fr
+  @inbounds model.topics[topic, word] += scale * fr
+  return
 end
 
 function sampleDocument(document::Int,
                         model::Model)
-  words = model.corpus.documents[document]
+  @inbounds words = model.corpus.documents[document]
   Nw = length(words)
-  weights = model.corpus.weights[document]
+  @inbounds weights = model.corpus.weights[document]
   K = length(model.alphaPrior)
   p = Array(Float64, K)
+  @inbounds assignments = model.assignments[document]
   for ii in 1:Nw
-    word = words[ii]
-    oldTopic = model.assignments[document][ii] 
+    @inbounds word = words[ii]
+    @inbounds oldTopic = assignments[ii]
     updateSufficientStatistics(word, oldTopic, document, -weights[ii], model)
-    newTopic::Int64 = sampleWord(word, document, model, p)
-    model.assignments[document][ii] = newTopic
+    newTopic = sampleWord(word, document, model, p)
+    @inbounds assignments[ii] = newTopic
     updateSufficientStatistics(word, newTopic, document, weights[ii], model)
   end
+  return
 end
 
 function sampleCorpus(model::Model)
   for ii in 1:length(model.corpus)
     sampleDocument(ii, model)
   end
+  return
 end
 
 # Note, files are zero indexed, but we are 1-indexed.
@@ -171,6 +179,7 @@ function trainModel(model::Model,
     println(string("Iteration ", ii, "..."))
     sampleCorpus(model)
   end
+  return
 end
 
 function topTopicWords(model::Model,
