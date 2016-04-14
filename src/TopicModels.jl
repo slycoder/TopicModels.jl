@@ -133,7 +133,7 @@ function updateSufficientStatistics(word::Int64,
                                     document::Int64,
                                     scale::Float64, 
                                     model::Model)
-  fr = float64(!model.frozen)
+  fr = Float64(!model.frozen)
   @inbounds model.documentSums[topic, document] += scale
   @inbounds model.topicSums[topic] += scale * fr
   @inbounds model.topics[topic, word] += scale * fr
@@ -167,9 +167,9 @@ function sampleCorpus(model::Model)
 end
 
 # Note, files are zero indexed, but we are 1-indexed.
-function termToWordSequence(term::String)
+function termToWordSequence(term::AbstractString)
   parts = split(term, ":")
-  fill(int64(parts[1]) + 1, int64(parts[2]))
+  fill(parse(Int64, parts[1]) + 1, parse(Int64, parts[2]))
 end 
 
 # The functions below are designed for public consumption
@@ -190,16 +190,15 @@ function topTopicWords(model::Model,
 end
 
 function readDocuments(stream)
-  lines = readlines(stream)
-  convert(
-    RaggedMatrix{Int64},
-    [apply(vcat, [termToWordSequence(term) for term in split(line, " ")[2:end]])
-     for line in lines])
+    lines = readlines(stream)
+    convert(RaggedMatrix{Int64},
+            [vcat([termToWordSequence(term) for term in split(line, " ")[2:end]]...)
+             for line in lines])
 end
 
 function readLexicon(stream)
   lines = readlines(stream)
-  map(chomp, convert(Array{String,1}, lines))
+  map(chomp, convert(Array{AbstractString,1}, lines))
 end
 
 export Corpus,
@@ -208,5 +207,4 @@ export Corpus,
        readLexicon,
        topTopicWords,
        trainModel
-
 end
