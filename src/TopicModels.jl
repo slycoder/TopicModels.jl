@@ -2,9 +2,9 @@ module TopicModels
 
 import Base.length
 
-typealias RaggedMatrix{T} Array{Array{T,1},1}
+RaggedMatrix{T} = Array{Array{T,1},1}
 
-type Corpus
+struct Corpus
   documents::RaggedMatrix{Int64}
   weights::RaggedMatrix{Float64}
 
@@ -15,7 +15,7 @@ type Corpus
       weights
     )
   end
-  
+
   Corpus(documents::RaggedMatrix{Int64}) = begin
     weights = map(documents) do doc
       ones(Float64, length(doc))
@@ -27,7 +27,7 @@ type Corpus
   end
 end
 
-type Model
+struct Model
   alphaPrior::Vector{Float64}
   betaPrior::Float64
   topics::Array{Float64,2}
@@ -37,9 +37,9 @@ type Model
   frozen::Bool
   corpus::Corpus
 
-  Model(alphaPrior::Vector{Float64}, 
-        betaPrior::Float64, 
-        V::Int64, 
+  Model(alphaPrior::Vector{Float64},
+        betaPrior::Float64,
+        V::Int64,
         corpus::Corpus) = begin
     K = length(alphaPrior)
     m = new(
@@ -48,7 +48,7 @@ type Model
       zeros(Float64, K, V), # topics
       zeros(Float64, K), # topicSums
       zeros(Float64, K, length(corpus.documents)), #documentSums
-      fill(Array(Int64, 0), length(corpus.documents)), # assignments
+      Array{Array{Int64,1},1}(undef,length(corpus.documents)), # assignments
       false,
       corpus
     )
@@ -111,8 +111,8 @@ function wordDistribution(word::Int,
                           out::Vector{Float64})
   V = size(model.topics, 2)
   for ii in 1:length(out)
-    u = (model.documentSums[ii, document] + model.alphaPrior[ii]) * 
-        (model.topics[ii, word] + model.betaPrior) / 
+    u = (model.documentSums[ii, document] + model.alphaPrior[ii]) *
+        (model.topics[ii, word] + model.betaPrior) /
         (model.topicSums[ii] + V * model.betaPrior)
     @inbounds out[ii] = u
   end
@@ -128,10 +128,10 @@ function sampleWord(word::Int,
 end
 
 
-function updateSufficientStatistics(word::Int64, 
+function updateSufficientStatistics(word::Int64,
                                     topic::Int64,
                                     document::Int64,
-                                    scale::Float64, 
+                                    scale::Float64,
                                     model::Model)
   fr = Float64(!model.frozen)
   @inbounds model.documentSums[topic, document] += scale
@@ -146,7 +146,7 @@ function sampleDocument(document::Int,
   Nw = length(words)
   @inbounds weights = model.corpus.weights[document]
   K = length(model.alphaPrior)
-  p = Array(Float64, K)
+  p = Array{Float64,1}(undef,K)
   @inbounds assignments = model.assignments[document]
   for ii in 1:Nw
     @inbounds word = words[ii]
@@ -170,10 +170,10 @@ end
 function termToWordSequence(term::AbstractString)
   parts = split(term, ":")
   fill(parse(Int64, parts[1]) + 1, parse(Int64, parts[2]))
-end 
+end
 
 # The functions below are designed for public consumption
-function trainModel(model::Model, 
+function trainModel(model::Model,
                     numIterations::Int64)
   for ii in 1:numIterations
     println(string("Iteration ", ii, "..."))
@@ -183,7 +183,7 @@ function trainModel(model::Model,
 end
 
 function topTopicWords(model::Model,
-                       lexicon::Array{ASCIIString,1},
+                       lexicon::Array{String,1},
                        numWords::Int64)
   [lexicon[reverse(sortperm(model.topics'[1:end, row]))[1:numWords]]
    for row in 1:size(model.topics,1)]
@@ -198,7 +198,7 @@ end
 
 function readLexicon(stream)
   lines = readlines(stream)
-  map(chomp, convert(Array{AbstractString,1}, lines))
+  convert(Array{String,1},map(chomp, convert(Array{AbstractString,1}, lines)))
 end
 
 export Corpus,
