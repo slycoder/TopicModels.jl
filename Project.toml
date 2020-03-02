@@ -4,9 +4,12 @@ authors = ["Jonathan Chang <slycoder @gmail.com>"]
 version = "0.1.0"
 
 [deps]
+Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+UMAP = "c4f8c510-2410-5be4-91d7-4fbaeb39457e"
 
 [compat]
 julia = "1.3"
