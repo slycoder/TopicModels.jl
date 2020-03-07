@@ -17,11 +17,9 @@ export Corpus,
        termToWordSequence,
        topTopicWords,
        trainModel,
-       GenerateDoc,
        CorpusTopics,
        CorpusARI,
-       DocsARI,
-       sampleDocument
+       DocsARI
 
 #Data that we make or find in real life:
 include("Data.jl")

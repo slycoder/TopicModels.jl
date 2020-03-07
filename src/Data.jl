@@ -1,7 +1,7 @@
 ### Document
 abstract type AbstractDocument end
 
-mutable struct LdaDocument <: AbstractDocument
+struct LdaDocument <: AbstractDocument
   # this is a fully observed data from the LDA model
   theta::Array{Float64,1} # the topic probs for the doc
   z::Array{Int64,1} # the topic for each word
@@ -31,9 +31,9 @@ function GenerateDoc(doc::LdaDocument,
                      alpha::Array{Float64,1},
                      Phi::Array{Float64,2})
     dd = Dirichlet(alpha)
-    doc.theta = vec(rand(dd,1))
+    doc.theta .= vec(rand(dd,1))
     cat = Categorical(vec(doc.theta))
-    doc.z = rand(cat,length(doc))
+    doc.z .= rand(cat,length(doc))
     for i in 1:length(doc)
         @inbounds dc = Categorical(Phi[:,doc.z[i]])
         @inbounds doc.terms[i] = rand(dc,1)[1]
@@ -41,7 +41,7 @@ function GenerateDoc(doc::LdaDocument,
     return
 end
 
-mutable struct Document <: AbstractDocument
+struct Document <: AbstractDocument
   #this is actual data, where only the terms are observed
   terms::Array{Int64,1} # the word tokens
   Document(terms::Array{Int64,1}) = new(terms)
@@ -54,7 +54,7 @@ end
 ### Corpus
 abstract type AbstractCorpus end
 
-mutable struct LdaCorpus <: AbstractCorpus
+struct LdaCorpus <: AbstractCorpus
   # this is a fully observed data from the LDA model
   docs::Array{LdaDocument,1}
   alpha::Array{Float64,1}
