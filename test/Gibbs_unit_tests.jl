@@ -50,6 +50,5 @@ using TopicModels: updateSufficientStatistics, joint_log_p #non-exported fns we 
     print("old Topic: ", oldTopic, "\n")
     print("new Topic: ", newTopic, "\n")
 
-    # why is this happenning?  normalizers should cancel for both ratios so our propto sampling dist should work
     @test isless(abs(joint_Lw_new-joint_Lw - cond_Lw_new+cond_Lw),1e-5)
 end
