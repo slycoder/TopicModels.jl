@@ -3,7 +3,7 @@ module TopicModels
 #Imports
 import Base.length
 
-using Random, Distributions, Plots, UMAP
+using Random, Distributions
 using SpecialFunctions: loggamma
 using Clustering: randindex
 
